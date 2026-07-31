@@ -20,9 +20,10 @@ pip install -r requirements.txt
 
 ### 1. Настройка конфигурации
 
-В файле `config.json` укажите желаемый интервал смены обоев:
+В файле `config.json` укажите желаемый интервал смены и режим отображения обоев:
 ```python
 INTERVAL_SECONDS = 10 # Интервал смены обоев в секундах
+WALLPAPER_MODE = "fit" # fit - Вписать, stretch - Растянуть, fill - Заполнить
 API_URL = "http://ge1.rock.hosts.name:34633/images" # Ссылка на govnoboy API
 ```
 

@@ -33,17 +33,22 @@ def detect_desktop_environment():
 
 
 def get_new_wallpaper_url():
-    response = requests.get(API_URL)
-    if response.ok:
-        return response.json()["url"]
-    else:
-        raise Exception("Ошибка при получении URL изображения")
+    response = requests.get(API_URL, timeout=15)
+    response.raise_for_status()
+    data = response.json()
+
+    try:
+        return data["url"]
+    except KeyError:
+        raise ValueError("API не вернуло поле 'url'")
 
 
 def download_image(url, save_path):
-    img_data = requests.get(url).content
-    with open(save_path, 'wb') as handler:
-        handler.write(img_data)
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    with open(save_path, "wb") as handler:
+        handler.write(response.content)
+
     print(f"Изображение сохранено: {save_path}")
 
 
@@ -65,31 +70,78 @@ def get_screen_resolution(desktop_env):
         return (1920, 1080)
 
 
-def prepare_image(src_path, screen_size, desktop_env):
+def prepare_image(src_path, screen_size, desktop_env, mode=WALLPAPER_MODE):
     with Image.open(src_path) as img:
         img = img.convert("RGB")
 
-        ratio_w = screen_size[0] / img.width
-        ratio_h = screen_size[1] / img.height
-        scale_ratio = min(ratio_w, ratio_h)
+        screen_width, screen_height = screen_size
 
-        new_width = int(img.width * scale_ratio)
-        new_height = int(img.height * scale_ratio)
+        if mode == "stretch":
+            new_img = img.resize(
+                (screen_width, screen_height),
+                Image.LANCZOS
+            )
 
-        img = img.resize((new_width, new_height), Image.LANCZOS)
+        elif mode == "fit":
+            ratio_w = screen_width / img.width
+            ratio_h = screen_height / img.height
+            scale_ratio = min(ratio_w, ratio_h)
 
-        new_img = Image.new("RGB", screen_size, (0, 0, 0))
-        offset = ((screen_size[0] - new_width) // 2, (screen_size[1] - new_height) // 2)
-        new_img.paste(img, offset)
+            new_width = int(img.width * scale_ratio)
+            new_height = int(img.height * scale_ratio)
+
+            img = img.resize(
+                (new_width, new_height),
+                Image.LANCZOS
+            )
+
+            new_img = Image.new(
+                "RGB",
+                screen_size,
+                (0, 0, 0)
+            )
+
+            offset = (
+                (screen_width - new_width) // 2,
+                (screen_height - new_height) // 2
+            )
+
+            new_img.paste(img, offset)
+
+        elif mode == "fill":
+            ratio_w = screen_width / img.width
+            ratio_h = screen_height / img.height
+            scale_ratio = max(ratio_w, ratio_h)
+
+            new_width = int(img.width * scale_ratio)
+            new_height = int(img.height * scale_ratio)
+
+            img = img.resize(
+                (new_width, new_height),
+                Image.LANCZOS
+            )
+
+            left = (new_width - screen_width) // 2
+            top = (new_height - screen_height) // 2
+
+            new_img = img.crop((
+                left,
+                top,
+                left + screen_width,
+                top + screen_height
+            ))
+
+        else:
+            raise ValueError(
+                f"Неизвестный режим обоев: {mode}"
+            )
 
         if desktop_env == "windows":
             dst_path = src_path.with_suffix(".bmp")
             new_img.save(dst_path, "BMP")
-            print(f"Конвертировано с вписыванием в экран: {dst_path}")
         else:
             dst_path = src_path.with_suffix(".jpg")
             new_img.save(dst_path, "JPEG", quality=95)
-            print(f"Изображение адаптировано под экран: {dst_path}")
 
         return dst_path
 
@@ -223,9 +275,9 @@ def main_loop(interval_seconds=INTERVAL_SECONDS):
 
     wallpapers_dir.mkdir(exist_ok=True, parents=True)
     current_wallpaper = None
-    screen_size = get_screen_resolution(desktop_env)
 
     while True:
+        screen_size = get_screen_resolution(desktop_env)
         try:
             img_url = get_new_wallpaper_url()
             file_name = img_url.split("/")[-1]
