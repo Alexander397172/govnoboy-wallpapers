@@ -7,8 +7,8 @@
 
 1. **Клонируйте репозиторий:**
 ```bash
-git clone https://github.com/Alexander397172/telegram-stats.git
-cd telegram-stats
+git clone https://github.com/Alexander397172/govnoboy-wallpapers.git
+cd govnoboy-wallpapers
 ```
 
 2. **Установите зависимости:**
